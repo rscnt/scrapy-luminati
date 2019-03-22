@@ -15,7 +15,7 @@ from scrapy_crawlera.utils import exp_backoff
 
 class CrawleraMiddleware(object):
 
-    url = 'http://proxy.crawlera.com:8010'
+    url = 'http://zproxy.lum-superproxy.io:22225'
     maxbans = 400
     ban_code = 503
     download_timeout = 190
@@ -29,7 +29,8 @@ class CrawleraMiddleware(object):
     exp_backoff = None
 
     _settings = [
-        ('apikey', str),
+        ('user', str),
+        ('password', str),
         ('url', str),
         ('maxbans', int),
         ('download_timeout', int),
@@ -59,9 +60,9 @@ class CrawleraMiddleware(object):
             setattr(self, k, self._get_setting_value(spider, k, type_))
 
         self._proxyauth = self.get_proxyauth(spider)
-        logging.info("Using crawlera at %s (apikey: %s)" % (
+        logging.info("Using luminati at %s (user: %s)" % (
             self.url,
-            self.apikey[:7])
+            self.user)
         )
 
         if not self.preserve_delay:
@@ -124,7 +125,7 @@ class CrawleraMiddleware(object):
 
     def get_proxyauth(self, spider):
         """Hook to compute Proxy-Authorization header by custom rules."""
-        return basic_auth_header(self.apikey, '')
+        return basic_auth_header(self.user, self.password)
 
     def process_request(self, request, spider):
         if self._is_enabled_for_request(request):

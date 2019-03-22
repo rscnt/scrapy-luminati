@@ -11,10 +11,10 @@ from scrapy.utils.test import get_crawler
 from scrapy.resolver import dnscache
 from twisted.internet.error import ConnectionRefusedError, ConnectionDone
 
-from scrapy_crawlera import CrawleraMiddleware
+from scrapy_luminati import CrawleraMiddleware
 import os
 
-from scrapy_crawlera.utils import exp_backoff
+from scrapy_luminati.utils import exp_backoff
 
 
 class MockedSlot(object):
@@ -392,7 +392,7 @@ class CrawleraMiddlewareTestCase(TestCase):
         self.assertEqual(req.headers['X-Crawlera-Cookies'], b'disable')
         self.assertNotIn('X-Crawlera-Profile', req.headers)
 
-    @patch('scrapy_crawlera.middleware.logging')
+    @patch('scrapy_luminati.middleware.logging')
     def test_crawlera_default_headers_conflicting_headers(self, mock_logger):
         spider = self.spider
         self.spider.crawlera_enabled = True

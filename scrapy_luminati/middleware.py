@@ -10,7 +10,7 @@ from scrapy.resolver import dnscache
 from scrapy.exceptions import ScrapyDeprecationWarning
 from twisted.internet.error import ConnectionRefusedError, ConnectionDone
 
-from scrapy_crawlera.utils import exp_backoff
+from scrapy_luminati.utils import exp_backoff
 
 
 class CrawleraMiddleware(object):
@@ -90,36 +90,36 @@ class CrawleraMiddleware(object):
     def _get_setting_value(self, spider, k, type_):
         if hasattr(spider, 'hubproxy_' + k):
             warnings.warn('hubproxy_%s attribute is deprecated, '
-                          'use crawlera_%s instead.' % (k, k),
+                          'use luminati_%s instead.' % (k, k),
                           category=ScrapyDeprecationWarning, stacklevel=1)
 
         if self.crawler.settings.get('HUBPROXY_%s' % k.upper()) is not None:
             warnings.warn('HUBPROXY_%s setting is deprecated, '
-                          'use CRAWLERA_%s instead.' % (k.upper(), k.upper()),
+                          'use LUMINATI_%s instead.' % (k.upper(), k.upper()),
                           category=ScrapyDeprecationWarning, stacklevel=1)
 
         o = getattr(self, k, None)
         s = self._settings_get(
-            type_, 'CRAWLERA_' + k.upper(), self._settings_get(
+            type_, 'LUMINATI_' + k.upper(), self._settings_get(
                 type_, 'HUBPROXY_' + k.upper(), o))
         return getattr(
-            spider, 'crawlera_' + k, getattr(spider, 'hubproxy_' + k, s))
+            spider, 'luminati_' + k, getattr(spider, 'hubproxy_' + k, s))
 
     def is_enabled(self, spider):
         """Hook to enable middleware by custom rules."""
         if hasattr(spider, 'use_hubproxy'):
             warnings.warn('use_hubproxy attribute is deprecated, '
-                          'use crawlera_enabled instead.',
+                          'use luminati_enabled instead.',
                           category=ScrapyDeprecationWarning, stacklevel=1)
 
         if self.crawler.settings.get('HUBPROXY_ENABLED') is not None:
             warnings.warn('HUBPROXY_ENABLED setting is deprecated, '
-                          'use CRAWLERA_ENABLED instead.',
+                          'use LUMINATI_ENABLED instead.',
                           category=ScrapyDeprecationWarning, stacklevel=1)
         return (
-            getattr(spider, 'crawlera_enabled', False) or
+            getattr(spider, 'luminati_enabled', False) or
             getattr(spider, 'use_hubproxy', False) or
-            self.crawler.settings.getbool("CRAWLERA_ENABLED") or
+            self.crawler.settings.getbool("LUMINATI_ENABLED") or
             self.crawler.settings.getbool("HUBPROXY_ENABLED")
         )
 

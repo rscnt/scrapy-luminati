@@ -64,9 +64,9 @@ author = u'Scrapinghub'
 #
 
 try:
-    import scrapy_crawlera
-    version = '.'.join(scrapy_crawlera.__version__.split('.')[:2])
-    release = scrapy_crawlera.__version__
+    import scrapy_luminati
+    version = '.'.join(scrapy_luminati.__version__.split('.')[:2])
+    release = scrapy_luminati.__version__
 except ImportError:
     version = ''
     release = ''

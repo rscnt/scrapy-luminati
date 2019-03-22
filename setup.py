@@ -5,17 +5,17 @@ with open("README.rst") as f:
 
 
 setup(
-    name='scrapy-crawlera',
+    name='scrapy-luminati',
     version='1.5.0',
     license='BSD',
-    description='Crawlera middleware for Scrapy',
+    description='Luminati middleware for Scrapy',
     long_description=readme,
     maintainer='Raul Gallegos',
     maintainer_email='raul.ogh@gmail.com',
     author='Scrapinghub',
     author_email='opensource@scrapinghub.com',
     url='https://github.com/scrapy-plugins/scrapy-crawlera',
-    packages=['scrapy_crawlera'],
+    packages=['scrapy_luminati'],
     platforms=['Any'],
     classifiers=[
         'Development Status :: 5 - Production/Stable',

@@ -6,7 +6,7 @@ with open("README.rst") as f:
 
 setup(
     name='scrapy-luminati',
-    version='1.5.0',
+    version='1.7.2',
     license='BSD',
     description='Luminati middleware for Scrapy',
     long_description=readme,

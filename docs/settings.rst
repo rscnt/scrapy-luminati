@@ -42,7 +42,7 @@ If ``False`` Sets Scrapy's ``DOWNLOAD_DELAY`` to ``0``, making the spider to cra
 respect the provided ``DOWNLOAD_DELAY`` from Scrapy.
 
 CRAWLERA_DEFAULT_HEADERS
------------------------
+------------------------
 
 Default: ``{}``
 
@@ -63,3 +63,15 @@ CRAWLERA_BACKOFF_MAX
 Default: ``180``
 
 Max value for exponential backoff as showed in the formula above.
+
+CRAWLERA_FORCE_ENABLE_ON_HTTP_CODES
+------------------------------------
+
+Default: ``[]``
+
+List of HTTP response status codes that warrant enabling Crawlera for the
+corresponding domain.
+
+When a response with one of these HTTP status codes is received after a request
+that did not go through Crawlera, the request is retried with Crawlera, and any
+new request to the same domain is also sent through Crawlera.

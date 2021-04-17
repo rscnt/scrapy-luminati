@@ -27,8 +27,12 @@ class CrawleraMiddleware(object):
     backoff_step = 15
     backoff_max = 180
     exp_backoff = None
+    force_enable_on_http_codes = []
+    max_auth_retry_times = 10
+    enabled_for_domain = {}
+    apikey = ""
 
-    _settings = [
+    _settings = [0
         ('user', str),
         ('password', str),
         ('url', str),
@@ -37,11 +41,13 @@ class CrawleraMiddleware(object):
         ('preserve_delay', bool),
         ('backoff_step', int),
         ('backoff_max', int),
+        ('force_enable_on_http_codes', list),
     ]
 
     def __init__(self, crawler):
         self.crawler = crawler
         self.job_id = os.environ.get('SCRAPY_JOB')
+        self.spider = None
         self._bans = defaultdict(int)
         self._saved_delays = defaultdict(lambda: None)
 
@@ -53,11 +59,21 @@ class CrawleraMiddleware(object):
 
     def open_spider(self, spider):
         self.enabled = self.is_enabled(spider)
-        if not self.enabled:
-            return
+        self.spider = spider
 
         for k, type_ in self._settings:
             setattr(self, k, self._get_setting_value(spider, k, type_))
+
+        self._fix_url_protocol()
+        self._headers = self.crawler.settings.get('CRAWLERA_DEFAULT_HEADERS', {}).items()
+        self.exp_backoff = exp_backoff(self.backoff_step, self.backoff_max)
+
+        if not self.enabled and not self.force_enable_on_http_codes:
+            return
+
+        if not self.apikey:
+            logging.warning("Crawlera can't be used without a APIKEY", extra={'spider': spider})
+            return
 
         self._proxyauth = self.get_proxyauth(spider)
         logging.info("Using luminati at %s (user: %s)" % (
@@ -70,10 +86,9 @@ class CrawleraMiddleware(object):
             spider.download_delay = 0
             logging.info(
                 "CrawleraMiddleware: disabling download delays on Scrapy side to optimize delays introduced by Crawlera. "
-                "To avoid this behaviour you can use the CRAWLERA_PRESERVE_DELAY setting but keep in mind that this may slow down the crawl significantly")
-
-        self._headers = self.crawler.settings.get('CRAWLERA_DEFAULT_HEADERS', {}).items()
-        self.exp_backoff = exp_backoff(self.backoff_step, self.backoff_max)
+                "To avoid this behaviour you can use the CRAWLERA_PRESERVE_DELAY setting but keep in mind that this may slow down the crawl significantly",
+                extra={'spider': spider},
+            )
 
     def _settings_get(self, type_, *a, **kw):
         if type_ is int:
@@ -105,6 +120,13 @@ class CrawleraMiddleware(object):
         return getattr(
             spider, 'luminati_' + k, getattr(spider, 'hubproxy_' + k, s))
 
+    def _fix_url_protocol(self):
+        if self.url.startswith('https://'):
+            logging.warning('CRAWLERA_URL "%s" set with "https://" protocol.' % self.url)
+        elif not self.url.startswith('http://'):
+            logging.warning('Adding "http://" to CRAWLERA_URL %s' % self.url)
+            self.url = 'http://' + self.url
+
     def is_enabled(self, spider):
         """Hook to enable middleware by custom rules."""
         if hasattr(spider, 'use_hubproxy'):
@@ -117,10 +139,8 @@ class CrawleraMiddleware(object):
                           'use LUMINATI_ENABLED instead.',
                           category=ScrapyDeprecationWarning, stacklevel=1)
         return (
-            getattr(spider, 'luminati_enabled', False) or
-            getattr(spider, 'use_hubproxy', False) or
-            self.crawler.settings.getbool("LUMINATI_ENABLED") or
-            self.crawler.settings.getbool("HUBPROXY_ENABLED")
+            getattr(spider, 'luminati_enabled', self.crawler.settings.getbool('0')) or
+            getattr(spider, 'use_hubproxy', self.crawler.settings.getbool("HUBPROXY_ENABLED"))
         )
 
     def get_proxyauth(self, spider):
@@ -152,16 +172,45 @@ class CrawleraMiddleware(object):
             response.headers.get('X-Crawlera-Error') == b'noslaves'
         )
 
+    def _is_auth_error(self, response):
+        return (
+            response.status == 407 and
+            response.headers.get('X-Crawlera-Error') == b'bad_proxy_auth'
+        )
+
     def process_response(self, request, response, spider):
         if not self._is_enabled_for_request(request):
+            return self._handle_not_enabled_response(request, response)
+
+        if not self._is_crawlera_response(response):
             return response
+
         key = self._get_slot_key(request)
         self._restore_original_delay(request)
 
-        if self._is_no_available_proxies(response):
-            self._set_custom_delay(request, next(self.exp_backoff))
+        if self._is_no_available_proxies(response) or self._is_auth_error(response):
+            if self._is_no_available_proxies(response):
+                reason = 'noslaves'
+            else:
+                reason = 'autherror'
+            self._set_custom_delay(request, next(self.exp_backoff), reason=reason)
         else:
+            self.crawler.stats.inc_value('crawlera/delay/reset_backoff')
             self.exp_backoff = exp_backoff(self.backoff_step, self.backoff_max)
+
+        if self._is_auth_error(response):
+            # When crawlera has issues it might not be able to authenticate users
+            # we must retry
+            retries = request.meta.get('crawlera_auth_retry_times', 0)
+            if retries < self.max_auth_retry_times:
+                return self._retry_auth(response, request, spider)
+            else:
+                self.crawler.stats.inc_value('crawlera/retries/auth/max_reached')
+                logging.warning(
+                    "Max retries for authentication issues reached, please check auth"
+                    " information settings",
+                    extra={'spider': self.spider},
+                )
 
         if self._is_banned(response):
             self._bans[key] += 1
@@ -170,7 +219,7 @@ class CrawleraMiddleware(object):
             else:
                 after = response.headers.get('retry-after')
                 if after:
-                    self._set_custom_delay(request, float(after))
+                    self._set_custom_delay(request, float(after), reason='banned')
             self.crawler.stats.inc_value('crawlera/response/banned')
         else:
             self._bans[key] = 0
@@ -190,15 +239,51 @@ class CrawleraMiddleware(object):
         if isinstance(exception, (ConnectionRefusedError, ConnectionDone)):
             # Handle crawlera downtime
             self._clear_dns_cache()
-            self._set_custom_delay(request, self.connection_refused_delay)
+            self._set_custom_delay(request, self.connection_refused_delay, reason='conn_refused')
+
+    def _handle_not_enabled_response(self, request, response):
+        if self._should_enable_for_response(response):
+            domain = self._get_url_domain(request.url)
+            self.enabled_for_domain[domain] = True
+
+            retryreq = request.copy()
+            retryreq.dont_filter = True
+            self.crawler.stats.inc_value('crawlera/retries/should_have_been_enabled')
+            return retryreq
+        return response
+
+    def _retry_auth(self, response, request, spider):
+        logging.warning(
+            "Retrying crawlera request for authentication issue",
+            extra={'spider': self.spider},
+        )
+        retries = request.meta.get('crawlera_auth_retry_times', 0) + 1
+        retryreq = request.copy()
+        retryreq.meta['crawlera_auth_retry_times'] = retries
+        retryreq.dont_filter = True
+        self.crawler.stats.inc_value('crawlera/retries/auth')
+        return retryreq
 
     def _clear_dns_cache(self):
         # Scrapy doesn't expire dns records by default, so we force it here,
         # so client can reconnect trough DNS failover.
         dnscache.pop(urlparse(self.url).hostname, None)
 
+    def _should_enable_for_response(self, response):
+        return response.status in self.force_enable_on_http_codes
+
     def _is_enabled_for_request(self, request):
-        return self.enabled and not request.meta.get('dont_proxy', False)
+        domain = self._get_url_domain(request.url)
+        domain_enabled = self.enabled_for_domain.get(domain, False)
+        dont_proxy = request.meta.get('dont_proxy', False)
+        return (domain_enabled or self.enabled) and not dont_proxy
+
+    def _get_url_domain(self, url):
+        parsed = urlparse(url)
+        return parsed.netloc
+
+    def _is_crawlera_response(self, response):
+        return bool("X-Crawlera-Version" in response.headers)
 
     def _get_slot_key(self, request):
         return request.meta.get('download_slot')
@@ -207,7 +292,7 @@ class CrawleraMiddleware(object):
         key = self._get_slot_key(request)
         return key, self.crawler.engine.downloader.slots.get(key)
 
-    def _set_custom_delay(self, request, delay):
+    def _set_custom_delay(self, request, delay, reason=None):
         """Set custom delay for slot and save original one."""
         key, slot = self._get_slot(request)
         if not slot:
@@ -215,6 +300,9 @@ class CrawleraMiddleware(object):
         if self._saved_delays[key] is None:
             self._saved_delays[key] = slot.delay
         slot.delay = delay
+        if reason is not None:
+            self.crawler.stats.inc_value('crawlera/delay/%s' % reason)
+            self.crawler.stats.inc_value('crawlera/delay/%s/total' % reason, delay)
 
     def _restore_original_delay(self, request):
         """Restore original delay for slot if it was changed."""
@@ -260,5 +348,6 @@ class CrawleraMiddleware(object):
                 'The headers %s are conflicting on request %s. X-Crawlera-UA '
                 'will be ignored. Please check https://doc.scrapinghub.com/cr'
                 'awlera.html for more information'
-                % (str(self.conflicting_headers), request.url)
+                % (str(self.conflicting_headers), request.url),
+                extra={'spider': self.spider},
             )

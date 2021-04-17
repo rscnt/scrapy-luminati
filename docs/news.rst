@@ -3,6 +3,37 @@
 Changes
 =======
 
+v1.7.2 (2020-12-01)
+-------------------
+- Use request.meta than response.meta in the middleware
+
+v1.7.1 (2020-10-22)
+-------------------
+- Consider Crawlera response if contains `X-Crawlera-Version` header
+- Build the documentation in Travis CI and fail on documentation issues
+- Update matrix of tests
+
+v1.7.0 (2020-04-01)
+-------------------
+- Added more stats to better understanding the internal states.
+- Log warning when using `https://` protocol.
+- Add default `http://` protocol in case of none provided, and log warning about it.
+- Fix duplicated request when the response is not from crawlera, this was causing an
+  infinite loop of retries when `dont_filter=True`.
+
+v1.6.0 (2019-05-27)
+-------------------
+
+- Enable crawlera on demand by setting ``CRAWLERA_FORCE_ENABLE_ON_HTTP_CODES``
+
+v1.5.1 (2019-05-21)
+-------------------
+
+- Remove username and password from settings since it's removed from crawlera.
+- Include affected spider in logs.
+- Handle situations when crawlera is restarted and reply with 407's for a few minutes
+  by retrying the requests with a exponential backoff system.
+
 v1.5.0 (2019-01-23)
 -------------------
 

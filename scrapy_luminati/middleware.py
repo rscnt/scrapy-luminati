@@ -32,7 +32,7 @@ class CrawleraMiddleware(object):
     enabled_for_domain = {}
     apikey = ""
 
-    _settings = [0
+    _settings = [
         ('user', str),
         ('password', str),
         ('url', str),

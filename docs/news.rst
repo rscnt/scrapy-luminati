@@ -3,6 +3,10 @@
 Changes
 =======
 
+v1.7.3-luuk (2021-04-17)
+-------------------
+- Updating settings call from middleware 
+
 v1.7.2 (2020-12-01)
 -------------------
 - Use request.meta than response.meta in the middleware

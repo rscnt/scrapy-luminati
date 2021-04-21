@@ -139,7 +139,7 @@ class CrawleraMiddleware(object):
                           'use LUMINATI_ENABLED instead.',
                           category=ScrapyDeprecationWarning, stacklevel=1)
         return (
-            getattr(spider, 'luminati_enabled', self.crawler.settings.getbool('0')) or
+            getattr(spider, 'luminati_enabled', self.crawler.settings.getbool('LUMINATI_ENABLED')) or
             getattr(spider, 'use_hubproxy', self.crawler.settings.getbool("HUBPROXY_ENABLED"))
         )
 

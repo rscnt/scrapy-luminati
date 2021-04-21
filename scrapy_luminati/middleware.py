@@ -138,6 +138,7 @@ class CrawleraMiddleware(object):
             warnings.warn('HUBPROXY_ENABLED setting is deprecated, '
                           'use LUMINATI_ENABLED instead.',
                           category=ScrapyDeprecationWarning, stacklevel=1)
+        logging.warning(f"LUMINATI_ENABLED {self.crawler.settings.getbool('LUMINATI_ENABLED')}")
         return (
             getattr(spider, 'luminati_enabled', self.crawler.settings.getbool('LUMINATI_ENABLED')) or
             getattr(spider, 'use_hubproxy', self.crawler.settings.getbool("HUBPROXY_ENABLED"))

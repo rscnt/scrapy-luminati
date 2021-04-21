@@ -71,9 +71,9 @@ class CrawleraMiddleware(object):
         if not self.enabled and not self.force_enable_on_http_codes:
             return
 
-        if not self.apikey:
-            logging.warning("Crawlera can't be used without a APIKEY", extra={'spider': spider})
-            return
+        # if not self.apikey:
+        #   logging.warning("Crawlera can't be used without a APIKEY", extra={'spider': spider})
+        #   return
 
         self._proxyauth = self.get_proxyauth(spider)
         logging.info("Using luminati at %s (user: %s)" % (
